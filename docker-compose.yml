@@ -1,0 +1,58 @@
+services:
+  db-bateponto:
+    image: mysql:8.0
+    container_name: db-bateponto
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: bateponto
+    ports:
+      - "3307:3306"
+    networks:
+      - bateponto-network
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin", "ping", "-h", "localhost", "-p$${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend-bateponto:
+    build: .
+    image: backend-bateponto
+    container_name: backend-bateponto
+    depends_on:
+      db-bateponto:
+        condition: service_healthy
+    environment:
+      DB_HOST: db-bateponto
+      DB_USER: root
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      DB_NAME: bateponto
+      DB_PORT: 3306
+      SESSION_SECRET: ${SESSION_SECRET}
+    ports:
+      - "3000:3000"
+    networks:
+      - bateponto-network
+
+  frontend-bateponto:
+    build: .
+    image: frontend-bateponto
+    container_name: frontend-bateponto
+    depends_on:
+      db-bateponto:
+        condition: service_healthy
+    environment:
+      DB_HOST: db-bateponto
+      DB_USER: root
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      DB_NAME: bateponto
+      DB_PORT: 3306
+      SESSION_SECRET: ${SESSION_SECRET}
+    ports:
+      - "8080:3000"
+    networks:
+      - bateponto-network
+
+networks:
+  bateponto-network:
+    driver: bridge
