@@ -2,14 +2,15 @@ FROM node:22-alpine
 
 WORKDIR /app
 
-ARG API_INTERNAL_URL=http://backend-bateponto:3000
-ENV API_INTERNAL_URL=$API_INTERNAL_URL
+RUN apk add --no-cache libc6-compat
 
-COPY package*.json ./
-
+COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN npm run build
 

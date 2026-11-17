@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import ProfessorNav from "@/app/components/ProfessorNav";
 
 type Servidor = {
   id: number;
@@ -25,16 +26,21 @@ type Registro = {
 };
 
 export default function PaginaProfessor() {
-  const servidorId = useRef<number | null>(null);
+  const [servidorId, setServidorId] = useState<number | null>(null);
   const [servidor, setServidor] = useState<Servidor | null>(null);
   const [registros, setRegistros] = useState<Registro[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [registrando, setRegistrando] = useState(false);
   const [mensagem, setMensagem] = useState("");
   const router = useRouter();
-
   const hoje = new Date();
-  const dataHoje = hoje.toISOString().split("T")[0];
+
+  const dataHoje = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(hoje);
 
   const mesAno = hoje.toLocaleDateString("pt-BR", {
     month: "long",
@@ -80,12 +86,21 @@ export default function PaginaProfessor() {
       return;
     }
 
-    servidorId.current = id;
-    void Promise.resolve().then(() => carregarDados(id));
+    setServidorId(id);
+    carregarDados(id);
   }, [router]);
 
-  const registroHoje =
-    registros.find((registro) => registro.data === dataHoje) || null;
+
+  const registrosHoje = useMemo(() => {
+    return registros.filter((registro) => registro.data === dataHoje);
+  }, [registros, dataHoje]);
+
+  const registroAberto = useMemo(() => {
+    return registrosHoje.find((registro) => registro.entrada && !registro.saida) || null;
+  }, [registrosHoje]);
+
+  const ultimoRegistroHoje = registrosHoje[0] || null;
+
 
   function formatarData(data: string) {
     const partes = data.split("-");
@@ -126,9 +141,7 @@ export default function PaginaProfessor() {
   }
 
   async function registrarPonto(acao: "entrada" | "saida") {
-    const id = servidorId.current;
-
-    if (!id) {
+    if (!servidorId) {
       setMensagem("Professor não identificado.");
       return;
     }
@@ -143,7 +156,7 @@ export default function PaginaProfessor() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          servidor_id: id,
+          servidor_id: servidorId,
           acao: acao,
         }),
       });
@@ -158,7 +171,7 @@ export default function PaginaProfessor() {
       setMensagem(dados.mensagem);
 
       const registrosResposta = await fetch(
-        `/api/registros_ponto?servidor_id=${id}`
+        `/api/registros_ponto?servidor_id=${servidorId}`
       );
 
       const registrosDados = await registrosResposta.json();
@@ -197,42 +210,7 @@ export default function PaginaProfessor() {
 
   return (
     <main className="folhaPagina">
-      <header className="folhaHeader">
-        <div className="folhaLogoArea">
-          <div className="folhaLogo">BP</div>
-          <strong>BatePonto</strong>
-        </div>
-
-        <nav className="folhaNav">
-          <a className="ativo" href="/pagina_professor">
-            Folha de Ponto
-          </a>
-          <a href="/pagina_professor/historico">
-            Histórico
-          </a>
-          <a href="#">Justificativas & Compensações</a>
-          <a href="#">Notificações</a>
-          <a href="#">Gerar PDF</a>
-        </nav>
-
-        <div className="folhaUsuario">
-          <div className="folhaAvatar">PF</div>
-
-          <div>
-            <strong>{servidor?.nome_completo || "Professor"}</strong>
-            <span>Professor</span>
-          </div>
-
-          <button
-            onClick={() => {
-              localStorage.removeItem("servidorId");
-              router.push("/");
-            }}
-          >
-            SAIR
-          </button>
-        </div>
-      </header>
+      <ProfessorNav paginaAtiva="folha" nomeProfessor={servidor?.nome_completo || "Professor"} />
 
       <div className="folhaBreadcrumb">
         <span>Sistema</span>
@@ -277,50 +255,51 @@ export default function PaginaProfessor() {
               })}
             </h2>
 
-            {registroHoje ? (
+            {ultimoRegistroHoje ? (
               <p>
-                Entrada: <strong>{registroHoje.entrada || "--:--"}</strong>
-                {"   "}
-                Saída: <strong>{registroHoje.saida || "--:--"}</strong>
+                Último período: Entrada{" "}
+                <strong>{ultimoRegistroHoje.entrada || "--:--"}</strong>
+                {" · "}
+                Saída{" "}
+                <strong>{ultimoRegistroHoje.saida || "--:--"}</strong>
               </p>
             ) : (
               <p>Nenhum ponto registrado hoje</p>
             )}
+
           </div>
+
 
           <div className="folhaPontoBotoes">
             <button
               className={
-                registroHoje?.entrada
+                registroAberto || registrando
                   ? "folhaBotaoRegistrado"
                   : "folhaBotaoEntrada"
               }
-              disabled={!!registroHoje?.entrada || registrando}
+              disabled={!!registroAberto || registrando}
               onClick={() => registrarPonto("entrada")}
             >
-              {registroHoje?.entrada
+              {registroAberto
                 ? "ENTRADA REGISTRADA"
                 : "REGISTRAR ENTRADA"}
             </button>
 
             <button
               className={
-                registroHoje?.saida
+                !registroAberto || registrando
                   ? "folhaBotaoRegistrado"
                   : "folhaBotaoSaida"
               }
-              disabled={
-                !registroHoje?.entrada ||
-                !!registroHoje?.saida ||
-                registrando
-              }
+              disabled={!registroAberto || registrando}
               onClick={() => registrarPonto("saida")}
             >
-              {registroHoje?.saida
-                ? "SAÍDA REGISTRADA"
+              {!registroAberto
+                ? "REGISTRAR SAÍDA"
                 : "REGISTRAR SAÍDA"}
             </button>
           </div>
+
 
           {mensagem && (
             <div className="folhaPontoMensagem">

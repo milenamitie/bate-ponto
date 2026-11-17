@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import ProfessorNav from "@/app/components/ProfessorNav";
 
 type Servidor = {
   id: number;
@@ -53,6 +54,7 @@ const nomesMeses = [
 export default function HistoricoProfessor() {
   const router = useRouter();
 
+  const [servidorId, setServidorId] = useState<number | null>(null);
   const [servidor, setServidor] = useState<Servidor | null>(null);
   const [registros, setRegistros] = useState<Registro[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -74,18 +76,24 @@ export default function HistoricoProfessor() {
       return;
     }
 
+    setServidorId(id);
+  }, [router]);
+
+  useEffect(() => {
+    if (!servidorId) return;
+
     async function carregarDados() {
       try {
         const [servidoresResposta, registrosResposta] = await Promise.all([
           fetch("/api/servidores"),
-          fetch(`/api/registros_ponto?servidor_id=${id}`),
+          fetch(`/api/registros_ponto?servidor_id=${servidorId}`),
         ]);
 
         const servidores = await servidoresResposta.json();
         const registrosDados = await registrosResposta.json();
 
         const servidorAtual = servidores.find(
-          (item: Servidor) => item.id === id
+          (item: Servidor) => item.id === servidorId
         );
 
         setServidor(servidorAtual || null);
@@ -98,8 +106,16 @@ export default function HistoricoProfessor() {
       }
     }
 
-    void carregarDados();
-  }, [router]);
+    carregarDados();
+  }, [servidorId]);
+
+  const mesAtual = useMemo(() => {
+    const agora = new Date();
+
+    return `${agora.getFullYear()}-${String(
+      agora.getMonth() + 1
+    ).padStart(2, "0")}`;
+  }, []);
 
   const meses = useMemo(() => {
     const grupos = new Map<string, Registro[]>();
@@ -113,6 +129,10 @@ export default function HistoricoProfessor() {
 
       grupos.get(chave)!.push(registro);
     });
+
+    if (!grupos.has(mesAtual)) {
+      grupos.set(mesAtual, []);
+    }
 
     const resultado: MesHistorico[] = Array.from(grupos.entries())
       .map(([chave, registrosDoMes]) => {
@@ -146,7 +166,15 @@ export default function HistoricoProfessor() {
       .sort((a, b) => b.chave.localeCompare(a.chave));
 
     return resultado;
-  }, [registros]);
+  }, [registros, mesAtual]);
+
+  useEffect(() => {
+    if (meses.length > 0) {
+      setMesesAbertos((atuais) =>
+        atuais.length === 0 ? [mesAtual] : atuais
+      );
+    }
+  }, [meses, mesAtual]);
 
   const mesesFiltrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
@@ -159,13 +187,13 @@ export default function HistoricoProfessor() {
     });
   }, [meses, busca]);
 
-function alternarMes(chave: string) {
-  setMesesAbertos((atuais) =>
-    atuais.includes(chave)
-      ? atuais.filter((item) => item !== chave)
-      : [...atuais, chave]
-  );
-}
+  function alternarMes(chave: string) {
+    setMesesAbertos((atuais) =>
+      atuais.includes(chave)
+        ? atuais.filter((item) => item !== chave)
+        : [...atuais, chave]
+    );
+  }
 
   function calcularMinutos(
     entrada: string | null,
@@ -200,7 +228,7 @@ function alternarMes(chave: string) {
   }
 
   function formatarData(data: string) {
-    const [, mes, dia] = data.split("-");
+    const [ano, mes, dia] = data.split("-");
     return `${dia}/${mes}`;
   }
 
@@ -238,14 +266,12 @@ function alternarMes(chave: string) {
       return partes[0].slice(0, 2).toUpperCase();
     }
 
-    return `${partes[0][0]}${
-      partes[partes.length - 1][0]
-    }`.toUpperCase();
+    return `${partes[0][0]}${partes[partes.length - 1][0]
+      }`.toUpperCase();
   }
 
-  function sair() {
-    localStorage.removeItem("servidorId");
-    router.push("/");
+  function abrirFolhaCompleta(chave: string) {
+    router.push(`/pagina_professor?mes=${chave}`);
   }
 
   function exportarHistorico() {
@@ -301,49 +327,7 @@ function alternarMes(chave: string) {
 
   return (
     <main className="historicoPagina">
-      <header className="folhaHeader">
-        <div className="folhaLogoArea">
-          <div className="folhaLogo">BP</div>
-          <strong>BatePonto</strong>
-        </div>
-
-        <nav className="folhaNav">
-          <a href="/pagina_professor">
-            Folha de Ponto
-          </a>
-
-          <a className="ativo" href="/pagina_professor/historico">
-            Histórico
-          </a>
-
-          <a href="#">
-            Justificativas
-          </a>
-
-          <a href="#">
-            Notificações
-          </a>
-
-          <a href="#">
-            Gerar PDF
-          </a>
-        </nav>
-
-        <div className="folhaUsuario">
-          <div className="folhaAvatar">
-            {iniciais(servidor?.nome_completo || "Professor")}
-          </div>
-
-          <div>
-            <strong>
-              {servidor?.nome_completo || "Professor"}
-            </strong>
-            <span>Professor</span>
-          </div>
-
-          <button onClick={sair}>SAIR</button>
-        </div>
-      </header>
+      <ProfessorNav paginaAtiva="historico" nomeProfessor={servidor?.nome_completo || "Professor"} />
 
       <div className="folhaBreadcrumb">
         <span>Sistema</span>
@@ -381,8 +365,8 @@ function alternarMes(chave: string) {
         <div className="historicoAno">
           {mesesFiltrados.length > 0
             ? Array.from(
-                new Set(mesesFiltrados.map((mes) => mes.ano))
-              ).join(" • ")
+              new Set(mesesFiltrados.map((mes) => mes.ano))
+            ).join(" • ")
             : new Date().getFullYear()}
         </div>
 
@@ -395,15 +379,15 @@ function alternarMes(chave: string) {
             mesesFiltrados.map((mes) => {
               const aberto = mesesAbertos.includes(mes.chave);
               const registrosExibidos = mes.registros.slice(0, 5);
+              const competenciaAberta = mes.chave === mesAtual;
 
               return (
                 <article
-                  className={`historicoMes ${
-                    aberto ? "historicoMesAberto" : ""
-                  }`}
+                  className={`historicoMes ${aberto ? "historicoMesAberto" : ""
+                    }`}
                   key={mes.chave}
                 >
-                  <button
+                  <div
                     className="historicoMesCabecalho"
                     onClick={() => alternarMes(mes.chave)}
                   >
@@ -411,6 +395,7 @@ function alternarMes(chave: string) {
                       <strong>
                         {mes.nome} {mes.ano}
                       </strong>
+
                       <span>
                         {String(mes.mes).padStart(2, "0")}/{mes.ano}
                       </span>
@@ -441,18 +426,28 @@ function alternarMes(chave: string) {
                       )}
                     </div>
 
-                    <span className="historicoFechado">
-                      FECHADO
+                    <span
+                      className={
+                        competenciaAberta
+                          ? "historicoAberto"
+                          : "historicoFechado"
+                      }
+                    >
+                      {competenciaAberta ? "ABERTO" : "FECHADO"}
                     </span>
 
-                    <span
-                      className={`historicoSeta ${
-                        aberto ? "aberta" : ""
-                      }`}
+                    <button
+                      type="button"
+                      className={`historicoSeta ${aberto ? "aberta" : ""
+                        }`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        alternarMes(mes.chave);
+                      }}
                     >
                       ▼
-                    </span>
-                  </button>
+                    </button>
+                  </div>
 
                   {aberto && (
                     <div className="historicoDetalhes">
@@ -460,76 +455,83 @@ function alternarMes(chave: string) {
                         REGISTROS DO PERÍODO
                       </div>
 
-                      <div className="historicoTabelaCabecalho">
-                        <span>DATA</span>
-                        <span>ENTRADA</span>
-                        <span>SAÍDA</span>
-                        <span>TOTAL</span>
-                        <span>STATUS</span>
-                      </div>
-
-                      {registrosExibidos.map((registro) => {
-                        const status = statusRegistro(registro);
-
-                        return (
-                          <div
-                            className="historicoTabelaLinha"
-                            key={registro.id}
-                          >
-                            <div className="historicoData">
-                              <strong>
-                                {formatarData(registro.data)}
-                              </strong>
-                              <span>
-                                {diaSemana(registro.data)}
-                              </span>
-                            </div>
-
-                            <div>
-                              {registro.entrada || "—"}
-                            </div>
-
-                            <div>
-                              {registro.saida || "—"}
-                            </div>
-
-                            <strong className="historicoTotal">
-                              {formatarHoras(
-                                calcularMinutos(
-                                  registro.entrada,
-                                  registro.saida
-                                )
-                              )}
-                            </strong>
-
-                            <span
-                              className={`historicoStatus historicoStatus${status.replace(
-                                " ",
-                                ""
-                              )}`}
-                            >
-                              {status}
-                            </span>
+                      {mes.registros.length === 0 ? (
+                        <div className="historicoVazio">
+                          Nenhum registro encontrado neste período.
+                        </div>
+                      ) : (
+                        <>
+                          <div className="historicoTabelaCabecalho">
+                            <span>DATA</span>
+                            <span>ENTRADA</span>
+                            <span>SAÍDA</span>
+                            <span>TOTAL</span>
+                            <span>STATUS</span>
                           </div>
-                        );
-                      })}
 
-                      <div className="historicoRodape">
-                        <span>
-                          Exibindo {registrosExibidos.length} de{" "}
-                          {mes.registros.length} registros
-                        </span>
+                          {registrosExibidos.map((registro) => {
+                            const status = statusRegistro(registro);
 
-                        {mes.registros.length > 5 && (
-                          <button
-                            onClick={() =>
-                              alternarMes(mes.chave)
-                            }
-                          >
-                            VER FOLHA COMPLETA →
-                          </button>
-                        )}
-                      </div>
+                            return (
+                              <div
+                                className="historicoTabelaLinha"
+                                key={registro.id}
+                              >
+                                <div className="historicoData">
+                                  <strong>
+                                    {formatarData(registro.data)}
+                                  </strong>
+
+                                  <span>
+                                    {diaSemana(registro.data)}
+                                  </span>
+                                </div>
+
+                                <div>
+                                  {registro.entrada || "—"}
+                                </div>
+
+                                <div>
+                                  {registro.saida || "—"}
+                                </div>
+
+                                <strong className="historicoTotal">
+                                  {formatarHoras(
+                                    calcularMinutos(
+                                      registro.entrada,
+                                      registro.saida
+                                    )
+                                  )}
+                                </strong>
+
+                                <span
+                                  className={`historicoStatus historicoStatus${status.replace(
+                                    " ",
+                                    ""
+                                  )}`}
+                                >
+                                  {status}
+                                </span>
+                              </div>
+                            );
+                          })}
+
+                          <div className="historicoRodape">
+                            <span>
+                              Exibindo {registrosExibidos.length} de{" "}
+                              {mes.registros.length} registros
+                            </span>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                abrirFolhaCompleta(mes.chave)
+                              }
+                            >
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   )}
                 </article>

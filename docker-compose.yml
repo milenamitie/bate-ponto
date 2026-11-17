@@ -1,0 +1,63 @@
+services:
+  db-bateponto:
+    image: milenamitie/mysql-bateponto:latest
+    container_name: db-bateponto
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: bateponto
+      MYSQL_USER: bateponto
+      MYSQL_PASSWORD: ${DB_PASSWORD:-bateponto}
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker-seed-users.sql:/docker-entrypoint-initdb.d/02-users.sql:ro
+      - ./docker-demo-data.sql:/docker-entrypoint-initdb.d/03-demo-data.sql:ro
+    networks:
+      - bateponto-network
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  app-bateponto:
+    image: bateponto-app:current
+    pull_policy: build
+    build:
+      context: .
+      dockerfile: dockerfile
+    container_name: app-bateponto
+    restart: unless-stopped
+    depends_on:
+      db-bateponto:
+        condition: service_healthy
+    environment:
+      DB_HOST: db-bateponto
+      DB_USER: bateponto
+      DB_PASSWORD: ${DB_PASSWORD:-bateponto}
+      DB_NAME: bateponto
+      DB_PORT: 3306
+      SESSION_SECRET: ${SESSION_SECRET:-local-demo-secret-change-before-deployment}
+      TZ: America/Sao_Paulo
+    ports:
+      - "8080:3000"
+    networks:
+      - bateponto-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+volumes:
+  mysql_data:
+    name: bateponto-compose-mysql-data-v2
+
+networks:
+  bateponto-network:
+    name: bateponto-network
+    driver: bridge
