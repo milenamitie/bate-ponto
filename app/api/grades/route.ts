@@ -1,5 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { RowDataPacket } from "mysql2";
+
+interface ServidorMateria extends RowDataPacket {
+  cargo: string;
+  materia: string | null;
+}
+
+async function validarMateriaDoProfessor(
+  servidorId: number,
+  disciplina: string
+): Promise<string | null> {
+  const [rows] = await db.execute<ServidorMateria[]>(
+    `SELECT cargo, materia FROM servidores WHERE id = ? LIMIT 1`,
+    [servidorId]
+  );
+  const servidor = rows[0];
+
+  if (!servidor || servidor.cargo !== "Professor") {
+    return "A grade deve estar vinculada a um professor.";
+  }
+
+  if (!servidor.materia?.trim()) {
+    return "Cadastre a matéria do professor antes de criar a grade.";
+  }
+
+  if (disciplina.trim() !== servidor.materia.trim()) {
+    return "A disciplina da grade deve ser a mesma matéria do professor.";
+  }
+
+  return null;
+}
 
 export async function GET() {
   try {
@@ -17,6 +48,7 @@ export async function GET() {
         g.status
       FROM grades_aulas g
       INNER JOIN servidores s ON s.id = g.servidor_id
+      WHERE BINARY TRIM(g.disciplina) = BINARY TRIM(s.materia)
       ORDER BY
         FIELD(
           g.dia_semana,
@@ -32,7 +64,9 @@ export async function GET() {
     `);
 
     return NextResponse.json(rows);
-  } catch {
+  } catch (error) {
+    console.error("Erro ao buscar grades:", error);
+
     return NextResponse.json(
       { erro: "Erro ao buscar grades." },
       { status: 500 }
@@ -57,6 +91,7 @@ export async function POST(request: NextRequest) {
 
     if (
       !servidor_id ||
+      !Number.isInteger(Number(servidor_id)) ||
       !disciplina ||
       !turma ||
       !sala ||
@@ -77,6 +112,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const erroMateria = await validarMateriaDoProfessor(
+      Number(servidor_id),
+      disciplina
+    );
+
+    if (erroMateria) {
+      return NextResponse.json({ erro: erroMateria }, { status: 400 });
+    }
+
     const [resultado] = await db.query(
       `
       INSERT INTO grades_aulas
@@ -93,7 +137,7 @@ export async function POST(request: NextRequest) {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `,
       [
-        servidor_id,
+        Number(servidor_id),
         disciplina,
         turma,
         sala,
@@ -108,7 +152,9 @@ export async function POST(request: NextRequest) {
       mensagem: "Grade cadastrada com sucesso.",
       id: (resultado as any).insertId,
     });
-  } catch {
+  } catch (error) {
+    console.error("Erro ao cadastrar grade:", error);
+
     return NextResponse.json(
       { erro: "Erro ao cadastrar grade." },
       { status: 500 }
@@ -135,6 +181,7 @@ export async function PUT(request: NextRequest) {
     if (
       !id ||
       !servidor_id ||
+      !Number.isInteger(Number(servidor_id)) ||
       !disciplina ||
       !turma ||
       !sala ||
@@ -155,6 +202,15 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    const erroMateria = await validarMateriaDoProfessor(
+      Number(servidor_id),
+      disciplina
+    );
+
+    if (erroMateria) {
+      return NextResponse.json({ erro: erroMateria }, { status: 400 });
+    }
+
     await db.query(
       `
       UPDATE grades_aulas
@@ -170,7 +226,7 @@ export async function PUT(request: NextRequest) {
       WHERE id = ?
       `,
       [
-        servidor_id,
+        Number(servidor_id),
         disciplina,
         turma,
         sala,
@@ -185,7 +241,9 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({
       mensagem: "Grade atualizada com sucesso.",
     });
-  } catch {
+  } catch (error) {
+    console.error("Erro ao atualizar grade:", error);
+
     return NextResponse.json(
       { erro: "Erro ao atualizar grade." },
       { status: 500 }
@@ -216,7 +274,9 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({
       mensagem: "Grade excluída com sucesso.",
     });
-  } catch {
+  } catch (error) {
+    console.error("Erro ao excluir grade:", error);
+
     return NextResponse.json(
       { erro: "Erro ao excluir grade." },
       { status: 500 }

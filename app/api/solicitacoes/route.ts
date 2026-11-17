@@ -16,6 +16,8 @@ interface Solicitacao extends RowDataPacket {
   anexos: string[] | null;
   status: "Pendente" | "Aprovado" | "Reprovado";
   criada_em: string;
+  decidida_em: string | null;
+  decisao_observacao: string | null;
 }
 
 function obterSessao(request: NextRequest) {
@@ -47,7 +49,9 @@ export async function GET(request: NextRequest) {
         horas,
         anexos,
         status,
-        DATE_FORMAT(criada_em, '%Y-%m-%d %H:%i:%s') AS criada_em
+        DATE_FORMAT(criada_em, '%Y-%m-%d %H:%i:%s') AS criada_em,
+        DATE_FORMAT(decidida_em, '%Y-%m-%d %H:%i:%s') AS decidida_em,
+        decisao_observacao
       FROM solicitacoes
       WHERE servidor_id = ?
       ORDER BY criada_em DESC`,

@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -8,8 +7,8 @@ import { useState } from "react";
 const links = [
   { href: "/pagina_gestao", label: "Painel" },
   { href: "/pagina_gestao/aprovacoes", label: "Aprovações" },
-  { href: "/pagina_gestao/acompanhamento", label: "Folha de Ponto" },
-  { href: "/pagina_gestao/alertas", label: "Alertas" },
+  { href: "/pagina_gestao/notificacoes", label: "Notificações" },
+  { href: "/pagina_gestao/gerar_pdf", label: "Gerar PDF" },
 ];
 
 export default function GestaoNav() {

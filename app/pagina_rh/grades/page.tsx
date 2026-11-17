@@ -7,6 +7,8 @@ import { useRouter } from "next/navigation";
 type Servidor = {
   id: number;
   nome_completo: string;
+  cargo: string;
+  materia: string | null;
 };
 
 type Grade = {
@@ -121,10 +123,13 @@ export default function Grades() {
 
   function abrirEditar(grade: Grade) {
     setGradeSelecionada(grade);
+    const professor = servidores.find(
+      (servidor) => servidor.id === grade.servidor_id
+    );
 
     setFormulario({
       servidor_id: String(grade.servidor_id),
-      disciplina: grade.disciplina,
+      disciplina: professor?.materia || grade.disciplina,
       turma: grade.turma,
       sala: grade.sala,
       dia_semana: grade.dia_semana,
@@ -152,6 +157,19 @@ export default function Grades() {
   }
 
   function alterarCampo(campo: keyof Formulario, valor: string) {
+    if (campo === "servidor_id") {
+      const professor = servidores.find(
+        (servidor) => String(servidor.id) === valor
+      );
+
+      setFormulario((atual) => ({
+        ...atual,
+        servidor_id: valor,
+        disciplina: professor?.materia || "",
+      }));
+      return;
+    }
+
     setFormulario((atual) => ({
       ...atual,
       [campo]: valor,
@@ -257,6 +275,10 @@ export default function Grades() {
       (grade) => String(grade.servidor_id) === professorFiltro
     );
   }, [grades, professorFiltro]);
+
+  const professores = servidores.filter(
+    (servidor) => servidor.cargo === "Professor" && servidor.materia?.trim()
+  );
 
   const professoresComGrade = new Set(
     grades.map((grade) => grade.servidor_id)
@@ -367,7 +389,7 @@ export default function Grades() {
               onChange={(e) => setProfessorFiltro(e.target.value)}
             >
               <option value="todos">Todos os professores</option>
-              {servidores.map((servidor) => (
+              {professores.map((servidor) => (
                 <option key={servidor.id} value={servidor.id}>
                   {servidor.nome_completo}
                 </option>
@@ -579,9 +601,7 @@ export default function Grades() {
                   DISCIPLINA / MATÉRIA
                   <input
                     value={formulario.disciplina}
-                    onChange={(e) =>
-                      alterarCampo("disciplina", e.target.value)
-                    }
+                    readOnly
                   />
                 </label>
 
