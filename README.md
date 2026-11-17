@@ -1,36 +1,47 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# BatePonto
 
-## Getting Started
+Sistema de Frequência Eletrônica com interface web, API Next.js e banco de dados MySQL.
 
-First, run the development server:
+## Executar com Docker Compose
+
+Pré-requisitos: Git e Docker Desktop com Docker Compose.
+
+Clone o repositório, entre na pasta do projeto e inicie os serviços:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/milenamitie/bate-ponto.git
+cd bate-ponto
+docker compose up -d --build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Abra o site em **[http://localhost:8080](http://localhost:8080)**. No Docker Desktop, também é possível clicar na porta publicada `8080:3000` do container `app-bateponto`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+O Compose constrói a aplicação a partir do código deste repositório e inicia o MySQL. A aplicação e a API rodam no container `app-bateponto`; o banco usa a imagem [`milenamitie/mysql-bateponto`](https://hub.docker.com/r/milenamitie/mysql-bateponto).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Portas
 
-## Learn More
+- Site e API: `http://localhost:8080`
+- MySQL: `localhost:3307` (porta `3306` dentro do container)
 
-To learn more about Next.js, take a look at the following resources:
+### Comandos úteis
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+docker compose ps
+docker compose logs -f app-bateponto
+docker compose down
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+`docker compose down` mantém os dados do banco no volume. Para apagar o banco persistido e recriá-lo na próxima inicialização, use `docker compose down -v`. Os scripts de demonstração são executados somente quando o volume do MySQL é inicializado pela primeira vez.
 
-## Deploy on Vercel
+As credenciais padrão são destinadas somente a demonstrações locais. Antes de disponibilizar o sistema em uma rede, crie um arquivo `.env` na raiz com valores próprios para `MYSQL_ROOT_PASSWORD`, `DB_PASSWORD` e `SESSION_SECRET`; não publique esse arquivo.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Desenvolvimento local
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Instale as dependências e inicie o servidor Next.js:
+
+```bash
+npm ci
+npm run dev
+```
+
+O servidor de desenvolvimento fica disponível em [http://localhost:3000](http://localhost:3000). Configure as variáveis de conexão MySQL no ambiente antes de iniciar.
